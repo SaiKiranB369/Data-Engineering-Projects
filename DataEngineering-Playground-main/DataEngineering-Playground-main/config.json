@@ -1,0 +1,11 @@
+{
+  "paths": {
+
+    "output_folder": "/home/bsk/PycharmProjects/Data/output",
+    "tracker_file": "/home/bsk/PycharmProjects/Data/tracker/id_tracker.json"
+
+  },
+  "data_settings": {
+    "num_rows_per_table": 500
+  }
+}

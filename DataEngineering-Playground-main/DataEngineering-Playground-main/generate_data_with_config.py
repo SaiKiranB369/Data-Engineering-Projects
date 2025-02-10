@@ -18,7 +18,7 @@ def load_config(config_file=DEFAULT_CONFIG_FILE):
             "tracker_file": "id_tracker.json"
         },
         "data_settings": {
-            "num_rows_per_table": 500
+            "num_rows_per_table": 5000
         }
     }
 
@@ -144,7 +144,6 @@ def generate_order_items(num_rows, start_id, max_order_id, max_product_id):
 
 def write_csv(file_name, header, rows):
     """Write the generated rows to a CSV file."""
-    import csv
     with open(file_name, mode='w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(header)
@@ -158,7 +157,11 @@ def main():
       3) Determine 'order_date' from command line or default to today.
       4) Generate data with strictly ascending IDs.
       5) Save updated ID tracker.
-      6) Write CSV files to the configured output folder with a second-level timestamp.
+      6) Write each of the 4 CSV files to:
+         raw_customers/YYYYMMDD/...
+         raw_products/YYYYMMDD/...
+         raw_orders/YYYYMMDD/...
+         raw_order_items/YYYYMMDD/...
     """
     # -- 1. Load configuration
     config = load_config()
@@ -166,18 +169,11 @@ def main():
     tracker_file = config["paths"]["tracker_file"]
     num_rows = config["data_settings"]["num_rows_per_table"]
 
-    # Make sure the output folder exists
+    # Make sure the main output folder exists
     os.makedirs(output_folder, exist_ok=True)
 
     # -- 2. Load or initialize ID tracker
     tracker = load_id_tracker(tracker_file)
-    # tracker example structure:
-    # {
-    #   "customers": 10000,
-    #   "products": 10000,
-    #   "orders": 10000,
-    #   "order_items": 10000
-    # }
 
     # -- 3. Determine data date for orders
     if len(sys.argv) > 1:
@@ -189,21 +185,21 @@ def main():
     else:
         run_date = datetime.date.today()
 
-    # Create a timestamp for the file names (to seconds level)
+    # Create a date string for subfolder names (e.g. '20250305')
+    date_str = run_date.strftime("%Y%m%d")
+
+    # Create a timestamp for filenames that includes date+time (e.g. '20250305_140826')
     file_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # -- 4. Generate data
-    # Customers
     c_start_id = tracker["customers"] + 1
     customers_data = generate_customers(num_rows, c_start_id)
     tracker["customers"] = c_start_id + num_rows - 1
 
-    # Products
     p_start_id = tracker["products"] + 1
     products_data = generate_products(num_rows, p_start_id)
     tracker["products"] = p_start_id + num_rows - 1
 
-    # Orders
     o_start_id = tracker["orders"] + 1
     orders_data = generate_orders(
         num_rows=num_rows,
@@ -213,7 +209,6 @@ def main():
     )
     tracker["orders"] = o_start_id + num_rows - 1
 
-    # Order Items
     oi_start_id = tracker["order_items"] + 1
     order_items_data = generate_order_items(
         num_rows=num_rows,
@@ -226,28 +221,49 @@ def main():
     # -- 5. Save updated ID tracker
     save_id_tracker(tracker, tracker_file)
 
-    # -- 6. Write CSV files to output_folder
-    customers_file   = os.path.join(output_folder, f"raw_customers_{file_timestamp}.csv")
-    products_file    = os.path.join(output_folder, f"raw_products_{file_timestamp}.csv")
-    orders_file      = os.path.join(output_folder, f"raw_orders_{file_timestamp}.csv")
-    order_items_file = os.path.join(output_folder, f"raw_order_items_{file_timestamp}.csv")
+    # -- 6. Build folder paths & write CSV files
 
-    write_csv(customers_file,
-              ["customer_id", "full_name", "email", "address", "city", "state"],
-              customers_data)
+    # 1) raw_customers/YYYYMMDD
+    customers_folder = os.path.join(output_folder, "raw_customers", date_str)
+    os.makedirs(customers_folder, exist_ok=True)
+    customers_file = os.path.join(customers_folder, f"raw_customers_{file_timestamp}.csv")
+    write_csv(
+        customers_file,
+        ["customer_id", "full_name", "email", "address", "city", "state"],
+        customers_data
+    )
 
-    write_csv(products_file,
-              ["product_id", "product_name", "category", "price"],
-              products_data)
+    # 2) raw_products/YYYYMMDD
+    products_folder = os.path.join(output_folder, "raw_products", date_str)
+    os.makedirs(products_folder, exist_ok=True)
+    products_file = os.path.join(products_folder, f"raw_products_{file_timestamp}.csv")
+    write_csv(
+        products_file,
+        ["product_id", "product_name", "category", "price"],
+        products_data
+    )
 
-    write_csv(orders_file,
-              ["order_id", "order_date", "customer_id", "total_amount", "order_status"],
-              orders_data)
+    # 3) raw_orders/YYYYMMDD
+    orders_folder = os.path.join(output_folder, "raw_orders", date_str)
+    os.makedirs(orders_folder, exist_ok=True)
+    orders_file = os.path.join(orders_folder, f"raw_orders_{file_timestamp}.csv")
+    write_csv(
+        orders_file,
+        ["order_id", "order_date", "customer_id", "total_amount", "order_status"],
+        orders_data
+    )
 
-    write_csv(order_items_file,
-              ["order_item_id", "order_id", "product_id", "quantity", "unit_price"],
-              order_items_data)
+    # 4) raw_order_items/YYYYMMDD
+    order_items_folder = os.path.join(output_folder, "raw_order_items", date_str)
+    os.makedirs(order_items_folder, exist_ok=True)
+    order_items_file = os.path.join(order_items_folder, f"raw_order_items_{file_timestamp}.csv")
+    write_csv(
+        order_items_file,
+        ["order_item_id", "order_id", "product_id", "quantity", "unit_price"],
+        order_items_data
+    )
 
+    # Final printout
     print(f"\nFiles generated for data date: {run_date}")
     print(f"  {customers_file}")
     print(f"  {products_file}")
